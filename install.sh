@@ -12,6 +12,7 @@ mkdir -p "$DEST" "$DEST/inbox" "$DEST/archive" "$DEST/identity" "$BINDIR"
 install -m 0755 "$SRC/bin/fleet.sh"            "$DEST/fleet.sh"
 install -m 0755 "$SRC/bin/broadcast.sh"        "$DEST/broadcast.sh"
 install -m 0755 "$SRC/bin/inbox-watch.sh"      "$DEST/inbox-watch.sh"
+install -m 0755 "$SRC/bin/fleet-remote.sh"    "$DEST/fleet-remote.sh"
 install -m 0755 "$SRC/hooks/fleet-inbox-hook.sh" "$DEST/fleet-inbox-hook.sh"
 
 ln -sf "$DEST/fleet.sh"     "$BINDIR/fleet.sh"

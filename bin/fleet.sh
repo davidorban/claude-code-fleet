@@ -4,7 +4,8 @@
 # Discovery works because Warp tabs launch Claude Code as
 #   claude --dangerously-skip-permissions /resume-log <Tab Name>
 # so the tab name is in the process argv. Instances started without that
-# argument fall back to their working directory's basename.
+# argument fall back to their working directory's basename, to a name they
+# claim with `fleet.sh claim`, or to $FLEET_NAME if it is exported.
 #
 # Delivery is pull-based: a message lands in the target's inbox and is surfaced
 # to it by the fleet-inbox hook on its next turn. Treat it as email between
@@ -36,6 +37,9 @@ roster() {
 
 # Which instance am I? Walk up the parent chain to the claude process.
 whoami_tab() {
+  # FLEET_NAME wins: for hosts with no tab name in argv (servers, cron, CI),
+  # export FLEET_NAME=<stable name> and every send is stamped with it.
+  if [ -n "${FLEET_NAME:-}" ]; then echo "$FLEET_NAME"; return 0; fi
   p=${PPID:-$$}
   for _ in 1 2 3 4 5 6; do
     args=$(ps -o args= -p "$p" 2>/dev/null || true)

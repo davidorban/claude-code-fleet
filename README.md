@@ -118,12 +118,42 @@ It exits immediately and silently when the inbox is empty, so it costs nothing o
 | `fleet.sh inbox [name]` | read unread messages |
 | `fleet.sh ack [name]` | archive what you have read |
 | `broadcast.sh <msg>` | send to every pane but yourself |
+| `fleet-remote.sh <host> <pane> <msg>` | deliver into another machine's inbox over ssh |
 | `inbox-watch.sh` | desktop notification when unread mail appears |
 
 `inbox-watch.sh` is for the human, not the agents. Run it from cron or `launchd` every few minutes
 and it fires a macOS notification naming the panes with mail waiting, but only when that set
 changes, so it does not nag. It exists because delivery is pull: a queued message sits there until
 somebody types in the receiving tab.
+
+## Servers, cron and CI
+
+Two additions cover the case where the thing with something to say is not a terminal tab.
+
+**A stable name.** `FLEET_NAME` overrides discovery, so a host with no tab name in its argv stamps
+its messages consistently:
+
+```sh
+export FLEET_NAME=build-server
+fleet.sh whoami        # build-server
+```
+
+**Delivery to another machine.** The mailbox is a directory of files, so `fleet-remote.sh` writes
+one over ssh:
+
+```sh
+FLEET_NAME=build-server fleet-remote.sh workstation "Notes" "nightly job failed, see /var/log/x"
+```
+
+It needs key-based ssh and an existing `~/.claude/fleet/inbox` on the target. Nothing is installed
+on the sending host beyond this script.
+
+**Do not wire the hook into unattended runs.** The `UserPromptSubmit` hook injects whatever is in
+the inbox into the session's context. On an interactive tab that is the point, and a human is
+watching. On a scheduled or headless run, especially one started with elevated permissions, it
+turns the mailbox into an input channel for an agent nobody is supervising, and any host that can
+write to that inbox can put text in front of it. Install the CLI on a server so it can *send*, and
+leave the hook off.
 
 ## Safety
 
