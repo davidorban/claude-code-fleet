@@ -1,0 +1,8 @@
+# Live message content and session state never belong in the repo.
+inbox/
+archive/
+identity/
+.inbox-watch-state
+.inbox-watch.log
+.inbox-watch.err
+.DS_Store
