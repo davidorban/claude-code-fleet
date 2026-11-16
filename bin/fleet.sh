@@ -4,8 +4,9 @@
 # Discovery works because Warp tabs launch Claude Code as
 #   claude --dangerously-skip-permissions /resume-log <Tab Name>
 # so the tab name is in the process argv. Instances started without that
-# argument fall back to their working directory's basename, to a name they
-# claim with `fleet.sh claim`, or to $FLEET_NAME if it is exported.
+# argument fall back to "(unnamed: <dir>-<pid>)", so two unnamed sessions in
+# one folder get separate inboxes, unless they claim a name with
+# `fleet.sh claim` or export $FLEET_NAME.
 #
 # Delivery is pull-based: a message lands in the target's inbox and is surfaced
 # to it by the fleet-inbox hook on its next turn. Treat it as email between
@@ -36,7 +37,7 @@ roster() {
     name=$(echo "$rest" | sed -n 's/.*\/resume-log[[:space:]]*//p')
     if [ -z "$name" ] && [ -f "$IDENT/$pid" ]; then name=$(cat "$IDENT/$pid"); fi
     cwd=$(lsof -a -p "$pid" -d cwd -Fn 2>/dev/null | sed -n 's/^n//p' | head -1 || true)
-    if [ -z "$name" ]; then name="(unnamed: ${cwd##*/})"; fi
+    if [ -z "$name" ]; then name="(unnamed: ${cwd##*/}-$pid)"; fi
     printf '%s\t%s\t%s\t%s\n' "$pid" "$etime" "${cwd:-?}" "$name"
   done <<< "$procs"
   # Drop claims of pids that are no longer a live session, so a recycled pid
@@ -60,7 +61,7 @@ whoami_tab() {
       n=$(echo "$args" | sed -n 's/.*\/resume-log[[:space:]]*//p')
       if [ -n "$n" ]; then echo "$n"; return 0; fi
       if [ -f "$IDENT/$p" ]; then cat "$IDENT/$p"; return 0; fi
-      echo "(unnamed: ${PWD##*/})"; return 0
+      echo "(unnamed: ${PWD##*/}-$p)"; return 0
     fi
     p=$(ps -o ppid= -p "$p" 2>/dev/null | tr -d ' ' || true)
     if [ -z "$p" ] || [ "$p" = "1" ]; then break; fi
@@ -68,14 +69,39 @@ whoami_tab() {
   echo "(unnamed: ${PWD##*/})"
 }
 
+# Before per-pid names an unnamed session's inbox was unnamed-<dir>. Mail still
+# queued there is not delivered to any session; say so in one line.
+legacy_notice() {  # legacy_notice <old inbox slug>...
+  local s n parts=""
+  for s in "$@"; do
+    n=$(find "$INBOX/$s" -maxdepth 1 -name '*.md' 2>/dev/null | wc -l | tr -d ' ')
+    if [ "${n:-0}" -gt 0 ]; then parts="$parts${parts:+, }$n message(s) in old inbox $s"; fi
+  done
+  [ -z "$parts" ] || echo "note: $parts (from before per-pid names, not delivered); read with: fleet.sh inbox <old inbox>, then fleet.sh ack <old inbox>"
+}
+
 case "${1:-who}" in
   who)
     printf '%-8s %-12s %-34s %s\n' PID UPTIME CWD TAB
-    roster | while IFS=$'\t' read -r pid etime cwd name; do
+    rows=$(roster); olds=" "
+    while IFS=$'\t' read -r pid etime cwd name; do
+      [ -n "${pid:-}" ] || continue
+      case "$name" in "(unnamed: "*)
+        o="unnamed-$(slug "${cwd##*/}")"
+        case "$olds" in *" $o "*) ;; *) olds="$olds$o " ;; esac ;;
+      esac
       n=$(find "$INBOX/$(slug "$name")" -maxdepth 1 -name '*.md' 2>/dev/null | wc -l | tr -d ' ')
       if [ "${n:-0}" -gt 0 ]; then name="$name  [$n unread]"; fi
       printf '%-8s %-12s %-34s %s\n' "$pid" "$etime" "${cwd/#$HOME/\~}" "$name"
-    done ;;
+    done <<< "$rows"
+    # Also old inboxes of folders with no live unnamed session: no -<pid> suffix.
+    for o in "$INBOX"/unnamed-*/; do
+      o="${o%/}"; o="${o##*/}"
+      [ "$o" != "unnamed-*" ] || continue
+      if ! [[ "$o" =~ -[0-9]+$ ]]; then case "$olds" in *" $o "*) ;; *) olds="$olds$o " ;; esac; fi
+    done
+    # shellcheck disable=SC2086  # olds is a space-separated list of slugs
+    legacy_notice $olds ;;
 
   whoami) whoami_tab ;;
 
@@ -110,7 +136,12 @@ case "${1:-who}" in
     echo "queued -> $f" ;;
 
   inbox)  # unread for me (or a named tab)
-    t=$(slug "${2:-$(whoami_tab)}")
+    me="${2:-$(whoami_tab)}"; t=$(slug "$me")
+    if [ -z "${2:-}" ]; then
+      case "$me" in "(unnamed: "*)
+        o="unnamed-$(slug "${PWD##*/}")"; [ "$o" = "$t" ] || legacy_notice "$o" ;;
+      esac
+    fi
     d="$INBOX/$t"; [ -d "$d" ] || { echo "(no messages for $t)"; exit 0; }
     : > "$SHOWN/$t.tmp"
     for f in "$d"/*.md; do
