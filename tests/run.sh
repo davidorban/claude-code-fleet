@@ -103,6 +103,41 @@ check "the fake pane is listed by its tab name" 'printf "%s" "$out" | grep -q "F
 check "non-claude processes are not listed" '! printf "%s" "$out" | grep -q "^[0-9]* .*sleep 30$"'
 kill "$fake" 2>/dev/null; wait "$fake" 2>/dev/null
 
+# unnamed sessions: identity is unnamed-<dir>-<pid>; old unnamed-<dir> mail gets one notice line
+fresh; unset FLEET_NAME
+W="$T/work/myproj"; mkdir -p "$W"
+in_session() { (cd "$W" && exec -a claude bash -c "$1; true" "$CLI" "$HOOK"); }
+out="$(in_session '"$0" whoami; echo "pid=$$"')"; spid="$(printf '%s\n' "$out" | sed -n 's/^pid=//p')"
+check "unnamed whoami is (unnamed: <dir>-<pid>)" 'printf "%s" "$out" | grep -qF "(unnamed: myproj-$spid)"'
+a="$(in_session '"$0" whoami')"; b="$(in_session '"$0" whoami')"
+check "two unnamed sessions in one folder differ" '[ "$a" != "$b" ]'
+out="$(in_session 'echo Named > "${0%/*}/identity/$$"; "$0" whoami')"
+check "a claimed name still wins" '[ "$out" = Named ]'
+out="$(in_session 'FLEET_NAME=Other "$0" send "(unnamed: myproj-$$)" "via hook" >/dev/null 2>&1; "$1"')"
+check "hook shows mail sent to unnamed-<dir>-<pid>" 'printf "%s" "$out" | grep -q "via hook"'
+out="$(in_session '"$1"')"
+check "another unnamed session in that folder sees none of it" '! printf "%s" "$out" | grep -q "via hook"'
+out="$(in_session '"$0" inbox')"
+check "inbox: no old-inbox notice while it is empty" '! printf "%s" "$out" | grep -q "old inbox"'
+mkdir -p "$F/inbox/unnamed-myproj"; printf -- '---\nfrom: x\n---\n\nold\n' > "$F/inbox/unnamed-myproj/20261116T120000-x.md"
+out="$(in_session '"$0" inbox')"
+check "inbox: one notice line names the old inbox" '[ "$(printf "%s\n" "$out" | grep -c "1 message(s) in old inbox unnamed-myproj")" = 1 ]'
+out="$(in_session '"$0" inbox someone')"
+check "inbox <name>: no old-inbox notice" '! printf "%s" "$out" | grep -q "old inbox"'
+( cd "$W" && exec -a claude bash -c 'sleep 30; true' ) & fake=$!
+sleep 1
+out="$("$CLI" who)"
+check "who lists the unnamed session as (unnamed: myproj-<pid>)" 'printf "%s" "$out" | grep -qF "(unnamed: myproj-$fake)"'
+check "who: one notice line names the old inbox" '[ "$(printf "%s\n" "$out" | grep -c "1 message(s) in old inbox unnamed-myproj")" = 1 ]'
+"$CLI" ack unnamed-myproj >/dev/null
+out="$("$CLI" who)"
+check "who: no notice once the old inbox is acked" '! printf "%s" "$out" | grep -q "old inbox"'
+mkdir -p "$F/inbox/unnamed-gone"; printf -- '---\nfrom: x\n---\n\nold\n' > "$F/inbox/unnamed-gone/20261116T120000-x.md"
+out="$("$CLI" who)"
+check "who: notices an old inbox whose folder has no live session" '[ "$(printf "%s\n" "$out" | grep -c "1 message(s) in old inbox unnamed-gone")" = 1 ]'
+kill "$fake" 2>/dev/null; wait "$fake" 2>/dev/null
+export FLEET_NAME="Tester"
+
 # claim: refuses when no claude ancestor exists (skipped when run inside a session)
 fresh
 under_claude=0; p=$$

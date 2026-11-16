@@ -19,7 +19,7 @@ PID      UPTIME       CWD                    TAB
 16872    03-11:01:47  ~/Dev/notes            Notes
 15839    12:09:50     ~/Dev/notes            Scraper
 18949    03-11:01:23  ~/Dev/notes            Invoices  [2 unread]
-59287    06:00:33     ~/Dev/notes            (unnamed: notes)
+59287    06:00:33     ~/Dev/notes            (unnamed: notes-59287)
 
 $ fleet.sh send "Scraper" "the shared checkout is 9 commits behind origin; do not pull yet"
 queued -> ~/.claude/fleet/inbox/scraper/20260828T205627-notes.md
@@ -43,8 +43,9 @@ the shared checkout is 9 commits behind origin; do not pull yet
 
 There is no session registry to query, so the roster is built from `ps`. A terminal that launches
 Claude Code with an argument carrying the tab name puts that name in the process argv, and `ps`
-can read it back. Sessions started without one fall back to their working directory's basename, or
-to a name they claim for themselves:
+can read it back. Sessions started without one fall back to `(unnamed: <dir>-<pid>)`, the working
+directory's basename plus the session's process id, so two unnamed sessions in one folder never
+share an inbox. A session can also claim a name for itself:
 
 ```
 $ fleet.sh claim "Invoices"
@@ -55,6 +56,11 @@ claimed pid 59287 as 'Invoices'
 writes `~/.claude/fleet/identity/<pid>`. The claim lasts for the life of that process. You can also
 write that file directly to register a session other than your own, which is how you reach a
 session that never named itself.
+
+Before the pid was added the fallback was `(unnamed: <dir>)`, inbox `unnamed-<dir>`. Mail still
+queued under such an old inbox is not delivered to any session. `fleet.sh who`, and `fleet.sh inbox`
+in an unnamed session, print one `note:` line while an old inbox still holds mail; read it with
+`fleet.sh inbox unnamed-<dir>` and clear it with `fleet.sh ack unnamed-<dir>`.
 
 ## Two transports, and when to use which
 
