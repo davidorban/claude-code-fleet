@@ -26,7 +26,7 @@ case ":$PATH:" in
   *) echo; echo "NOTE: $BINDIR is not on your PATH. Add it, or call $DEST/fleet.sh by full path." ;;
 esac
 
-cat <<'EOF'
+cat <<EOF
 
 Add this to ~/.claude/settings.json so messages surface in every session:
 
@@ -34,10 +34,19 @@ Add this to ~/.claude/settings.json so messages surface in every session:
     "hooks": {
       "UserPromptSubmit": [
         { "hooks": [ { "type": "command",
-                       "command": "$HOME/.claude/fleet/fleet-inbox-hook.sh" } ] }
+                       "command": "$DEST/fleet-inbox-hook.sh" } ] }
       ]
     }
   }
+EOF
+
+if [ "$DEST" != "$HOME/.claude/fleet" ]; then
+  echo
+  echo "NOTE: installed outside the default location. Export FLEET_HOME=$DEST in your"
+  echo "shell profile so fleet.sh, broadcast.sh and inbox-watch.sh use the same mailbox."
+fi
+
+cat <<'EOF'
 
 If you already have a UserPromptSubmit array, append to it rather than replacing it.
 

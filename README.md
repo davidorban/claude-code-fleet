@@ -116,7 +116,7 @@ It exits immediately and silently when the inbox is empty, so it costs nothing o
 | `fleet.sh claim <name>` | name this session |
 | `fleet.sh send <name> <msg>` | queue a message |
 | `fleet.sh inbox [name]` | read unread messages |
-| `fleet.sh ack [name]` | archive what you have read |
+| `fleet.sh ack [name]` | archive what the hook or `inbox` last showed you; mail that arrived since stays |
 | `broadcast.sh <msg>` | send to every pane but yourself |
 | `fleet-remote.sh <host> <pane> <msg>` | deliver into another machine's inbox over ssh |
 | `inbox-watch.sh` | desktop notification when unread mail appears |
@@ -125,6 +125,10 @@ It exits immediately and silently when the inbox is empty, so it costs nothing o
 and it fires a macOS notification naming the panes with mail waiting, but only when that set
 changes, so it does not nag. It exists because delivery is pull: a queued message sits there until
 somebody types in the receiving tab.
+
+To install somewhere other than `~/.claude/fleet`, run `FLEET_HOME=<dir> ./install.sh` and export
+the same `FLEET_HOME` in your shell profile. `tests/run.sh` runs the test suite against a throwaway
+`HOME`; CI runs it on every push.
 
 ## Servers, cron and CI
 

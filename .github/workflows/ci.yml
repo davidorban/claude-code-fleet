@@ -1,0 +1,17 @@
+name: ci
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Syntax
+        run: for f in bin/*.sh hooks/*.sh install.sh tests/*.sh; do bash -n "$f"; done
+      - name: ShellCheck (errors only)
+        run: shellcheck -S error bin/*.sh hooks/*.sh install.sh tests/*.sh
+      - name: Tests
+        run: tests/run.sh
