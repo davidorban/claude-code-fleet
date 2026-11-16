@@ -129,9 +129,11 @@ case "${1:-who}" in
         case "$b" in ""|*/*) continue ;; esac
         if [ -f "$d/$b" ]; then mv "$d/$b" "$ARCHIVE/$t/"; fi
       done < "$SHOWN/$t"
-      rm -f "$SHOWN/$t"
+      # Empty the record but keep the file: a second ack with nothing shown
+      # since then archives nothing, not everything.
+      : > "$SHOWN/$t"
     else
-      # Nothing recorded as shown (no hook installed): archive all mail, as before.
+      # No record has ever existed (hook not installed): archive all mail, as before.
       for f in "$d"/*.md; do if [ -f "$f" ]; then mv "$f" "$ARCHIVE/$t/"; fi; done
     fi
     echo "acked $t" ;;

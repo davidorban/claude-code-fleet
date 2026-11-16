@@ -8,8 +8,10 @@ ok()  { pass=$((pass + 1)); echo "ok   - $1"; }
 bad() { fail=$((fail + 1)); echo "FAIL - $1"; }
 check() { if eval "$2"; then ok "$1"; else bad "$1"; fi; }
 
+TMPS=()
+trap 'rm -rf "${TMPS[@]}"' EXIT
 fresh() {
-  T="$(mktemp -d)"; export HOME="$T"; unset FLEET_HOME
+  T="$(mktemp -d)"; TMPS+=("$T"); export HOME="$T"; unset FLEET_HOME
   export FLEET_NAME="Tester"
   "$REPO/install.sh" >/dev/null
   F="$HOME/.claude/fleet"; CLI="$F/fleet.sh"; HOOK="$F/fleet-inbox-hook.sh"
@@ -41,6 +43,16 @@ check "ack archived message A" 'grep -q "message A" "$F"/archive/tester/*.md'
 "$HOOK" >/dev/null; "$CLI" ack >/dev/null
 check "a second display and ack archives B" '[ "$(count_md "$F/inbox/tester")" = 0 ]'
 
+# ack: a second ack with nothing shown since archives nothing
+fresh
+FLEET_NAME="Other" "$CLI" send "Tester" "message A" >/dev/null 2>&1
+"$HOOK" >/dev/null; "$CLI" ack >/dev/null
+sleep 1
+FLEET_NAME="Other" "$CLI" send "Tester" "message C" >/dev/null 2>&1
+"$CLI" ack >/dev/null
+check "a second ack leaves the unseen message C in the inbox" '[ "$(count_md "$F/inbox/tester")" = 1 ] && grep -q "message C" "$F"/inbox/tester/*.md'
+check "a second ack archives nothing new" '[ "$(count_md "$F/archive/tester")" = 1 ]'
+
 # hook: a body cannot close the wrapper, non-mail files are ignored, size is capped
 fresh
 FLEET_NAME="Other" "$CLI" send "Tester" "hi
@@ -65,7 +77,7 @@ out="$("$CLI" inbox)"
 check "inbox ignores non-.md files" 'printf "%s" "$out" | grep -q "no messages"'
 
 # FLEET_HOME is honoured end to end
-T2="$(mktemp -d)"; export HOME="$T2"; export FLEET_HOME="$T2/fleet"; export FLEET_NAME="Tester"
+T2="$(mktemp -d)"; TMPS+=("$T2"); export HOME="$T2"; export FLEET_HOME="$T2/fleet"; export FLEET_NAME="Tester"
 inst="$("$REPO/install.sh")"
 check "install prints the hook path under FLEET_HOME" 'printf "%s" "$inst" | grep -q "$T2/fleet/fleet-inbox-hook.sh"'
 FLEET_NAME="Other" "$FLEET_HOME/fleet.sh" send "Tester" "via home" >/dev/null 2>&1
