@@ -31,9 +31,13 @@ slug() { echo "$1" | tr '[:upper:]' '[:lower:]' | sed -E 's/[^a-z0-9]+/-/g; s/^-
 
 FROM="${FLEET_NAME:-$(hostname -s)}"
 TARGET="$(slug "$PANE")"
+[ -n "$TARGET" ] || { echo "error: '$PANE' has no letters or digits to name a pane by" >&2; exit 2; }
 STAMP="$(date +%Y%m%dT%H%M%S)"
 REMOTE_DIR="\$HOME/.claude/fleet/inbox/$TARGET"
-REMOTE_FILE="$REMOTE_DIR/$STAMP-$(slug "$FROM").md"
+# pid and $RANDOM keep two sends in one second apart.
+NAME="$STAMP-$$$RANDOM-$(slug "$FROM").md"
+REMOTE_FILE="$REMOTE_DIR/$NAME"
+REMOTE_TMP="$REMOTE_DIR/.$NAME.tmp"
 
 {
   echo "---"
@@ -43,4 +47,4 @@ REMOTE_FILE="$REMOTE_DIR/$STAMP-$(slug "$FROM").md"
   echo "---"
   echo
   echo "$MSG"
-} | ssh "$HOST" "mkdir -p $REMOTE_DIR && cat > $REMOTE_FILE && echo delivered: $REMOTE_FILE"
+} | ssh "$HOST" "mkdir -p $REMOTE_DIR && cat > $REMOTE_TMP && mv $REMOTE_TMP $REMOTE_FILE && echo delivered: $REMOTE_FILE"

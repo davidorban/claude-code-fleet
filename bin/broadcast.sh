@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# broadcast.sh — send one message to every pane that has an inbox, except yourself.
+# broadcast.sh — send one message to every live or known pane, except yourself.
 #
 # Cooperative by design. A pane reads the message on its next turn and decides what
 # to do with it; nothing here can force another session to act. Use it for things
@@ -25,15 +25,23 @@ fi
 me="$("$CLI" whoami 2>/dev/null || echo unknown)"
 me_slug=$(echo "$me" | tr '[:upper:]' '[:lower:]' | sed -E 's/[^a-z0-9]+/-/g; s/^-+//; s/-+$//')
 
+slugify() { echo "$1" | tr '[:upper:]' '[:lower:]' | sed -E 's/[^a-z0-9]+/-/g; s/^-+//; s/-+$//'; }
+
+# Recipients: every live pane in the roster (even one that has never had mail),
+# plus every pane that already has an inbox.
+recipients() {
+  "$CLI" roster 2>/dev/null | cut -f4 | while IFS= read -r n; do slugify "$n"; done
+  for d in "$FLEET/inbox"/*/; do [ -d "$d" ] && basename "$d"; done
+}
+
 sent=0
-for d in "$FLEET/inbox"/*/; do
-  [ -d "$d" ] || continue
-  slug="$(basename "$d")"
+while IFS= read -r slug; do
+  [ -n "$slug" ] || continue
   [ "$slug" = "$me_slug" ] && continue
   if "$CLI" send "$slug" "$MSG" >/dev/null 2>&1; then
     printf '  -> %s\n' "$slug"
     sent=$((sent + 1))
   fi
-done
+done < <(recipients | sort -u)
 
 echo "queued to $sent pane(s), from '$me'."

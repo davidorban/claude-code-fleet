@@ -2,9 +2,10 @@
 # Fleet inbox watcher: when any pane has unread mail, ping David ONCE per change.
 # Unread = a .md file sitting in ~/.claude/fleet/inbox/<pane>/ (ack moves it to archive/).
 # Only notifies when the set of unread panes changes, so it doesn't nag on every tick.
-INBOX="$HOME/.claude/fleet/inbox"
-STATE="$HOME/.claude/fleet/.inbox-watch-state"
-LOG="$HOME/.claude/fleet/.inbox-watch.log"
+FLEET="${FLEET_HOME:-$HOME/.claude/fleet}"
+INBOX="$FLEET/inbox"
+STATE="$FLEET/.inbox-watch-state"
+LOG="$FLEET/.inbox-watch.log"
 
 unread=()
 for d in "$INBOX"/*/; do
